@@ -5609,6 +5609,38 @@ def _backup_drive_service_from_secret():
         return None
 
 
+def _documenti_drive_service_from_secret():
+    """Client dedicato all'archivio documenti.
+
+    Usa sempre il service account di backup, cioe l'account al quale viene
+    condivisa la cartella configurata in [gcp_documents]. In questo modo un
+    eventuale OAuth presente nei Secrets non puo far eseguire le operazioni
+    documentali con un account diverso e provocare un falso errore 404.
+    """
+    try:
+        section = st.secrets.get("gcp_backup_service_account")
+        if not section:
+            return None
+        raw = section.get("content", "")
+        if not raw:
+            return None
+        info = json.loads(raw) if isinstance(raw, str) else dict(raw)
+
+        from google.oauth2 import service_account
+        from googleapiclient.discovery import build
+        creds = service_account.Credentials.from_service_account_info(
+            info,
+            scopes=["https://www.googleapis.com/auth/drive"],
+        )
+        st.session_state["_documenti_drive_auth_mode"] = (
+            f"Service Account: {info.get('client_email', '')}"
+        )
+        return build("drive", "v3", credentials=creds, cache_discovery=False)
+    except Exception as exc:
+        st.session_state["_documenti_drive_auth_error"] = f"{type(exc).__name__}: {exc}"
+        return None
+
+
 def carica_backup_su_google_drive(zip_bytes, nome_file, folder_id=GOOGLE_DRIVE_BACKUP_FOLDER_ID):
     """Carica un backup ZIP nella cartella Google Drive configurata.
     Usa prima l'account OAuth autorizzato e solo in alternativa il service account.
@@ -5719,7 +5751,7 @@ def _documenti_drive_percorso(service, atleta=None, tipo="ALTRI_DOCUMENTI", stag
 def carica_documento_su_google_drive(dati_bytes, nome_file, atleta=None, tipo="ALTRI_DOCUMENTI", stagione="", mime="application/pdf"):
     if not dati_bytes:
         return {"ok": False, "error": "Documento vuoto."}
-    service = _backup_drive_service_from_secret()
+    service = _documenti_drive_service_from_secret()
     if service is None:
         return {"ok": False, "error": "Google Drive documenti non configurato."}
     try:
@@ -19004,7 +19036,7 @@ elif pagina_scelta == 'Area Amministratori':
         st.caption('La cartella DOCUMENTI_GESTIONALE contiene sottocartelle per stagione, atleta e tipo di documento.')
         if st.button('CREA / VERIFICA CARTELLA DOCUMENTI DRIVE', type='secondary', use_container_width=True):
             try:
-                servizio_documenti = _backup_drive_service_from_secret()
+                servizio_documenti = _documenti_drive_service_from_secret()
                 if servizio_documenti is None:
                     raise ValueError('Credenziali Google Drive non disponibili')
                 cartella_documenti = _documenti_drive_cartella(servizio_documenti, 'DOCUMENTI_GESTIONALE', _documenti_drive_root_id())
