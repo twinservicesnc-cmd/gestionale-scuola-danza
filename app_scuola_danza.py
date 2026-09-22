@@ -2456,7 +2456,7 @@ def genera_pdf_ricevuta_v2(ricevuta, atleta, societa):
     stagione = str(ricevuta.get('stagione','-')).replace('-', '/')
     testo = (f"di aver ricevuto in data {ricevuta.get('data_pagamento','-')} la somma di Euro {imp_it} "
              f"({_importo_lettere_it(importo)}) per la quota associativa e di partecipazione all'attivita sportiva "
-             f"di {ricevuta.get('attivita_sportiva','Pallavolo')} svolta nella stagione sportiva {stagione} "
+             f"di {ricevuta.get('attivita_sportiva','Danza')} svolta nella stagione sportiva {stagione} "
              f"dall'associata/o")
     y = draw_wrapped(testo, sx, y, "Times-Roman", 10.7, 15)
 
@@ -2560,18 +2560,25 @@ def genera_pdf_certificazione_cumulativa(ricevuta, atleta, societa, bozza=False)
     p.drawCentredString(width/2,height-96,f"N. {numero} - Emessa il {ricevuta.get('data_emissione','-')}")
     y=height-150
     denom=str(cfg.get('denominazione_ricevute') or cfg.get('nome') or societa or 'Societa sportiva')
-    intro=(f"Il sottoscritto {cfg.get('rappresentante','-')}, in qualita di presidente e legale rappresentante della {denom}, "
-           f"con sede in {cfg.get('sede','-')}, P. IVA/C.F. {cfg.get('piva_cf','-')}, cod. FIPAV {cfg.get('cod_fipav','-')},")
+    rappresentante = str(cfg.get('rappresentante') or '-').strip()
+    sede_societa = str(cfg.get('sede') or '-').strip()
+    piva_societa = str(cfg.get('piva_cf') or '-').strip()
+    registro_societa = str(cfg.get('numero_coni') or '').strip()
+    intro=(f"Il sottoscritto {rappresentante}, in qualita di presidente e legale rappresentante della {denom}, "
+           f"con sede in {sede_societa}, P. IVA/C.F. {piva_societa}")
+    if registro_societa:
+        intro += f", Registro CONI/RASD {registro_societa}"
+    intro += ","
     y=wrap(intro,y)
     y-=5; p.setFont('Times-Bold',13); p.drawCentredString(width/2,y,'ATTESTA'); y-=24
     totale=safe_float(ricevuta.get('importo',0)); imp=f"{totale:,.2f}".replace(',','X').replace('.',',').replace('X','.')
     testo=(f"che nel periodo dal {ricevuta.get('periodo_dal','-')} al {ricevuta.get('periodo_al','-')} e stata ricevuta, "
            f"con strumenti di pagamento tracciabili, la somma complessiva di Euro {imp} ({_importo_lettere_it(totale)}) "
-           f"per la partecipazione all'attivita sportiva di Pallavolo nella stagione {str(ricevuta.get('stagione','')).replace('-', '/')} dell'atleta:")
+           f"per la partecipazione ai corsi di danza nella stagione {str(ricevuta.get('stagione','')).replace('-', '/')} dell'allieva/o:")
     y=wrap(testo,y); y-=5
     p.setFont('Times-Bold',10.5); p.drawString(sx,y,str(ricevuta.get('atleta_nome','-')).upper()); y-=16
     p.setFont('Times-Roman',10.2)
-    p.drawString(sx,y,f"Codice fiscale atleta: {ricevuta.get('atleta_cf','-') or '-'}"); y-=15
+    p.drawString(sx,y,f"Codice fiscale allieva/o: {ricevuta.get('atleta_cf','-') or '-'}"); y-=15
     luogo=' '.join(x for x in [str(atleta.get('luogo_nas','') or '').strip(),str(atleta.get('prov_nas','') or '').strip()] if x)
     p.drawString(sx,y,f"Luogo e data di nascita: {luogo}{', ' if luogo and atleta.get('data_nas') else ''}{atleta.get('data_nas','')}"); y-=22
     dati_tab=[['Data','Rata / causale','Metodo','Importo']]
@@ -10890,7 +10897,7 @@ elif pagina_scelta in {'👤 SCHEDA ATLETA','Anagrafiche e Rate'}:
                         pagatore_cf=st.text_input('Codice fiscale del pagatore *',value='',key='ric_cf_pagatore').strip().upper()
                     with c2:
                         causale=st.text_input('Causale',value=f"Quota iscrizione / partecipazione attività sportiva - {pag.get('rata','')}",key='ric_causale')
-                        attivita=st.text_input('Attività sportiva',value='Pallavolo',key='ric_attivita')
+                        attivita=st.text_input('Attività sportiva',value='Danza',key='ric_attivita')
                         bollo=st.checkbox('Marca da bollo € 2,00 applicata',value=False,key='ric_bollo')
                     note_ric=st.text_input('Note documento',value='',key='ric_note')
                     st.info(f"Numero previsto: {prossimo_numero_ricevuta(stagione_selezionata, ricevute)} · Importo: € {safe_float(pag.get('importo',0)):,.2f} · Pagamento: {pag.get('data','-')} · {pag.get('metodo','-')}")
@@ -10907,7 +10914,7 @@ elif pagina_scelta in {'👤 SCHEDA ATLETA','Anagrafiche e Rate'}:
                                 'pagatore_nome':pagatore_nome.strip().upper(),'pagatore_cf':pagatore_cf,
                                 'data_pagamento':pag.get('data',''),'data_emissione':ora_italiana().strftime('%d/%m/%Y'),
                                 'importo':round(safe_float(pag.get('importo',0)),2),'metodo':pag.get('metodo',''),
-                                'causale':causale.strip(),'attivita_sportiva':attivita.strip() or 'Pallavolo',
+                                'causale':causale.strip(),'attivita_sportiva':attivita.strip() or 'Danza',
                                 'bollo_applicato':bool(bollo),'note':note_ric.strip(),'annullata':False,
                                 'societa_snapshot':dict(config_societa),'societa_snapshot_version':2,
                                 'operatore':st.session_state.get('username_corrente','admin')
@@ -18242,7 +18249,7 @@ elif pagina_scelta == 'Area Amministratori':
                 st.image(base64.b64decode(config_societa['firma_presidente_b64']),caption='Firma attualmente salvata',width=320)
             except Exception:
                 st.warning('La firma salvata non è leggibile: caricala nuovamente.')
-        sede=st.text_input('Sede',value=config_societa.get('sede','')); piva=st.text_input('P. IVA / C.F.',value=config_societa.get('piva_cf','')); fipav=st.text_input('Cod. FIPAV',value=config_societa.get('cod_fipav','')); numero_coni=st.text_input('Registro CONI / RASD',value=config_societa.get('numero_coni','')); citta_ricevuta=st.text_input('Città emissione ricevute',value=config_societa.get('citta_ricevuta','')); dicitura_detrazione=st.checkbox('Inserisci dicitura detrazione IRPEF nelle ricevute',value=bool(config_societa.get('dicitura_detrazione_ricevute',True))); link_mag=st.text_input('🔗 Link area magazzino esterna',value=config_societa.get('link_magazzino',''),placeholder='https://...')
+        sede=st.text_input('Sede',value=config_societa.get('sede','')); piva=st.text_input('P. IVA / C.F.',value=config_societa.get('piva_cf','')); fipav=st.text_input('Codice affiliazione (facoltativo)',value=config_societa.get('cod_fipav','')); numero_coni=st.text_input('Registro CONI / RASD',value=config_societa.get('numero_coni','')); citta_ricevuta=st.text_input('Città emissione ricevute',value=config_societa.get('citta_ricevuta','')); dicitura_detrazione=st.checkbox('Inserisci dicitura detrazione IRPEF nelle ricevute',value=bool(config_societa.get('dicitura_detrazione_ricevute',True))); link_mag=st.text_input('🔗 Link area magazzino esterna',value=config_societa.get('link_magazzino',''),placeholder='https://...')
         if st.button('💾 Salva configurazione società', type='primary'):
             if invia_cert_societa and not _safe_email(email_cert_societa):
                 st.error('Inserisci un indirizzo e-mail societario valido oppure disattiva la copia amministrativa.'); st.stop()
