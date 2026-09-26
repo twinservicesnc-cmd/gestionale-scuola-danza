@@ -14,6 +14,7 @@ import uuid
 import hashlib
 import hmac
 import secrets
+import tempfile
 import unicodedata
 import textwrap
 import smtplib
@@ -1707,12 +1708,25 @@ def salva_json_sicuro(file, dati):
     """Salvataggio atomico locale + copia persistente Google Drive."""
     prima = _leggi_json_locale_senza_default(file)
     esegui_backup(file)
-    temp_file = file + ".tmp"
-    with open(temp_file, "w", encoding="utf-8") as f:
-        json.dump(dati, f, indent=4, ensure_ascii=False)
-        f.flush()
-        os.fsync(f.fileno())
-    os.replace(temp_file, file)
+    destinazione = Path(file)
+    destinazione.parent.mkdir(parents=True, exist_ok=True)
+    fd_temp, temp_file = tempfile.mkstemp(
+        prefix=f".{destinazione.name}.",
+        suffix=".tmp",
+        dir=str(destinazione.parent),
+    )
+    try:
+        with os.fdopen(fd_temp, "w", encoding="utf-8") as f:
+            json.dump(dati, f, indent=4, ensure_ascii=False)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(temp_file, destinazione)
+    finally:
+        if os.path.exists(temp_file):
+            try:
+                os.remove(temp_file)
+            except OSError:
+                pass
     _registra_attivita_globale(file, prima, dati)
 
     try:
